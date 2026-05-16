@@ -75,7 +75,7 @@ if(cloud) scene.remove(cloud);
 
 const positions=[];
 const colors=[];
-const particles= 400000;
+const particles= 800000;
 
 for(let i=0;i<particles;i++){
 
