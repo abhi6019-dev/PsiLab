@@ -1,32 +1,21 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<title>Orbitalis</title>
+<title>Orbitalis Ultra</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
+<div id="loading"><div id="loader">Generating orbital... <span id="percent">0%</span></div></div>
 <div id="panel">
-
-<label>n</label>
-<input id="n" type="number" value="3" min="1">
-
-<label>l</label>
-<input id="l" type="number" value="2" min="0">
-
-<label>m</label>
+<h1>Orbitalis Ultra</h1>
+<input id="n" type="number" value="3">
+<input id="l" type="number" value="2">
 <input id="m" type="number" value="0">
-
-<button id="generate">
-Generate
-</button>
-
+<input id="count" type="number" value="2000000">
+<button id="generate">Generate</button>
 </div>
-
 <canvas id="bg"></canvas>
-
 <script type="module" src="main.js"></script>
-
 </body>
 </html>

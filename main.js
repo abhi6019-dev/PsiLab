@@ -1,332 +1,82 @@
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js?module';
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x000000);
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x000000);
 
-const camera = new THREE.PerspectiveCamera(
-75,
-window.innerWidth/window.innerHeight,
-0.1,
-1000
-);
+const camera=new THREE.PerspectiveCamera(75,innerWidth/innerHeight,1e-8,1e8);
+camera.position.z=25;
 
-camera.position.z=10;
+const renderer=new THREE.WebGLRenderer({canvas:bg,logarithmicDepthBuffer:true,powerPreference:'high-performance'});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(1);
 
-const renderer=new THREE.WebGLRenderer({
-canvas:document.querySelector('#bg'),
-antialias:true
-});
-
-renderer.setSize(
-window.innerWidth,
-window.innerHeight
-);
-
-const controls=new OrbitControls(
-camera,
-renderer.domElement
-);
-
+const controls=new OrbitControls(camera,renderer.domElement);
 controls.enableDamping=true;
+controls.minDistance=1e-8;
 
 const nucleus=new THREE.Mesh(
-new THREE.SphereGeometry(0.6,64,64),
-new THREE.MeshBasicMaterial({
-color:0xff5533,
-depthTest:false
-})
+new THREE.SphereGeometry(.00032,32,32),
+new THREE.MeshBasicMaterial({color:0xff5533,depthTest:false})
 );
-
-nucleus.renderOrder=999;
 scene.add(nucleus);
 
 let cloud;
 
-// ------------------
-// factorial
-// ------------------
+function psi(n,l,m,r,t,p){return Math.exp(-r/n)*Math.pow(r,l)*Math.abs(Math.cos(m*p))*Math.abs(Math.sin(t*l));}
 
-function fact(n){
-let r=1;
-for(let i=2;i<=n;i++)r*=i;
-return r;
+async function generate(){
+loading.style.display='flex';
+
+const n=+document.getElementById('n').value;
+const l=+document.getElementById('l').value;
+const m=+document.getElementById('m').value;
+const N=+document.getElementById('count').value;
+
+if(cloud)scene.remove(cloud);
+
+const pos=new Float32Array(N*3);
+let ptr=0;
+
+for(let i=0;i<N;i++){
+if(i%50000===0){
+percent.textContent=Math.floor(i/N*100)+'%';
+await new Promise(r=>setTimeout(r,0));
 }
 
-// ------------------
-// Laguerre
-// ------------------
+const r=-Math.log(Math.random())*n*2;
+const t=Math.acos(2*Math.random()-1);
+const p=Math.random()*Math.PI*2;
 
-function L(k,a,x){
+if(Math.random()>psi(n,l,m,r,t,p)*.1)continue;
 
-if(k===0)return 1;
-if(k===1)return 1+a-x;
-
-let L0=1;
-let L1=1+a-x;
-
-for(let n=2;n<=k;n++){
-
-let Ln=
-(
-(2*n-1+a-x)*L1
--(n-1+a)*L0
-)/n;
-
-L0=L1;
-L1=Ln;
+pos[ptr++]=r*Math.sin(t)*Math.cos(p);
+pos[ptr++]=r*Math.sin(t)*Math.sin(p);
+pos[ptr++]=r*Math.cos(t);
 }
 
-return L1;
-}
+const g=new THREE.BufferGeometry();
+g.setAttribute('position',new THREE.BufferAttribute(pos.slice(0,ptr),3));
 
-// ------------------
-// Legendre
-// ------------------
+const mat=new THREE.PointsMaterial({size:.006,transparent:true,opacity:.05,color:0x66aaff,depthWrite:false});
 
-function P(l,m,x){
-
-if(m<0)
-return Math.pow(-1,m)*
-fact(l-m)/fact(l+m)*
-P(l,-m,x);
-
-if(l===m)
-return Math.pow(-1,m)*
-fact(2*m-1)*
-Math.pow(1-x*x,m/2);
-
-if(l===m+1)
-return x*(2*m+1)*P(m,m,x);
-
-return (
-(2*l-1)*x*P(l-1,m,x)
--(l+m-1)*P(l-2,m,x)
-)/(l-m);
-}
-
-// ------------------
-// harmonic
-// ------------------
-
-function Y(l,m,theta,phi){
-
-return Math.abs(
-P(l,Math.abs(m),Math.cos(theta))
-*Math.cos(m*phi)
-);
-}
-
-// ------------------
-// radial
-// ------------------
-
-function R(n,l,r){
-
-const rho=2*r/n;
-
-return Math.exp(-rho/2)*
-Math.pow(rho,l)*
-L(n-l-1,2*l+1,rho);
-}
-
-// ------------------
-// probability
-// ------------------
-
-function psiProb(
-n,l,m,
-r,theta,phi
-){
-
-const radial=
-R(n,l,r);
-
-const angular=
-Y(l,m,theta,phi);
-
-return radial*radial*
-angular*angular;
-}
-
-// ------------------
-// orbital generation
-// ------------------
-
-function generateOrbital(
-n,l,m
-){
-
-if(l>=n){
-alert("Need l < n");
-return;
-}
-
-if(Math.abs(m)>l){
-alert("Need |m| ≤ l");
-return;
-}
-
-if(cloud)
-scene.remove(cloud);
-
-const positions=[];
-const colors=[];
-
-const particles=300000;
-
-for(let i=0;i<particles;i++){
-
-let r=Math.random()*20;
-
-let theta=Math.acos(
-2*Math.random()-1
-);
-
-let phi=Math.random()*Math.PI*2;
-
-let prob=
-psiProb(
-n,l,m,
-r,theta,phi
-);
-
-if(Math.random()>prob*5)
-continue;
-
-let x=
-r*Math.sin(theta)*Math.cos(phi);
-
-let y=
-r*Math.sin(theta)*Math.sin(phi);
-
-let z=
-r*Math.cos(theta);
-
-positions.push(
-x,y,z
-);
-
-let intensity=
-Math.min(prob*20,1);
-
-colors.push(
-intensity,
-0.3,
-1-intensity
-);
-}
-
-const geometry=
-new THREE.BufferGeometry();
-
-geometry.setAttribute(
-'position',
-new THREE.Float32BufferAttribute(
-positions,3
-)
-);
-
-geometry.setAttribute(
-'color',
-new THREE.Float32BufferAttribute(
-colors,3
-)
-);
-
-const material=
-new THREE.PointsMaterial({
-size:0.04,
-transparent:true,
-opacity:0.7,
-vertexColors:true,
-depthWrite:false
-});
-
-material.onBeforeCompile=
-shader=>{
-
-shader.fragmentShader=
-shader.fragmentShader.replace(
-`#include <clipping_planes_fragment>`,
-`
-#include <clipping_planes_fragment>
-if(length(gl_PointCoord-vec2(0.5))>0.5) discard;
-`
-);
-
+mat.onBeforeCompile=s=>{
+s.fragmentShader=s.fragmentShader.replace('#include <clipping_planes_fragment>','\n#include <clipping_planes_fragment>\nif(length(gl_PointCoord-vec2(.5))>.5) discard;');
 };
 
-cloud=new THREE.Points(
-geometry,
-material
-);
-
+cloud=new THREE.Points(g,mat);
 scene.add(cloud);
-
+loading.style.display='none';
 }
 
-// UI
+generate.onclick=generate;
+generate();
 
-document
-.getElementById("generate")
-.onclick=()=>{
-
-const n=
-parseInt(
-document.getElementById("n").value
-);
-
-const l=
-parseInt(
-document.getElementById("l").value
-);
-
-const m=
-parseInt(
-document.getElementById("m").value
-);
-
-generateOrbital(
-n,l,m
-);
-
-};
-
-generateOrbital(3,2,0);
-
-// animation
-
-function animate(){
-
-requestAnimationFrame(
-animate
-);
-
-controls.update();
-
-renderer.render(
-scene,
-camera
-);
-
-}
-
+function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera)}
 animate();
 
-window.addEventListener(
-'resize',
-()=>{
-
-camera.aspect=
-window.innerWidth/
-window.innerHeight;
-
+addEventListener('resize',()=>{
+camera.aspect=innerWidth/innerHeight;
 camera.updateProjectionMatrix();
-
-renderer.setSize(
-window.innerWidth,
-window.innerHeight
-);
-
-});
+renderer.setSize(innerWidth,innerHeight)
+})
