@@ -11,10 +11,10 @@ window.innerWidth/window.innerHeight,
 1000
 );
 
-camera.position.z = 8;
+camera.position.z=10;
 
-const renderer = new THREE.WebGLRenderer({
-canvas: document.querySelector('#bg'),
+const renderer=new THREE.WebGLRenderer({
+canvas:document.querySelector('#bg'),
 antialias:true
 });
 
@@ -23,14 +23,14 @@ window.innerWidth,
 window.innerHeight
 );
 
-const controls = new OrbitControls(
+const controls=new OrbitControls(
 camera,
 renderer.domElement
 );
 
-controls.enableDamping = true;
+controls.enableDamping=true;
 
-const nucleus = new THREE.Mesh(
+const nucleus=new THREE.Mesh(
 new THREE.SphereGeometry(0.6,64,64),
 new THREE.MeshBasicMaterial({
 color:0xff5533,
@@ -43,46 +43,141 @@ scene.add(nucleus);
 
 let cloud;
 
-// ---------------------
-// Sampling
-// ---------------------
+// ------------------
+// factorial
+// ------------------
 
-function sampleRadius1s(){
-while(true){
-let r=Math.random()*8;
-if(Math.random()<4*r*r*Math.exp(-2*r))
+function fact(n){
+let r=1;
+for(let i=2;i<=n;i++)r*=i;
 return r;
 }
+
+// ------------------
+// Laguerre
+// ------------------
+
+function L(k,a,x){
+
+if(k===0)return 1;
+if(k===1)return 1+a-x;
+
+let L0=1;
+let L1=1+a-x;
+
+for(let n=2;n<=k;n++){
+
+let Ln=
+(
+(2*n-1+a-x)*L1
+-(n-1+a)*L0
+)/n;
+
+L0=L1;
+L1=Ln;
 }
 
-function sampleRadius2s(){
-while(true){
-let r=Math.random()*12;
-let prob=(2-r)*(2-r)*r*r*Math.exp(-r);
-
-if(Math.random()<prob/4)
-return r;
-}
+return L1;
 }
 
-// ---------------------
-// Cloud generation
-// ---------------------
+// ------------------
+// Legendre
+// ------------------
 
-function createCloud(type){
+function P(l,m,x){
 
-if(cloud) scene.remove(cloud);
+if(m<0)
+return Math.pow(-1,m)*
+fact(l-m)/fact(l+m)*
+P(l,-m,x);
+
+if(l===m)
+return Math.pow(-1,m)*
+fact(2*m-1)*
+Math.pow(1-x*x,m/2);
+
+if(l===m+1)
+return x*(2*m+1)*P(m,m,x);
+
+return (
+(2*l-1)*x*P(l-1,m,x)
+-(l+m-1)*P(l-2,m,x)
+)/(l-m);
+}
+
+// ------------------
+// harmonic
+// ------------------
+
+function Y(l,m,theta,phi){
+
+return Math.abs(
+P(l,Math.abs(m),Math.cos(theta))
+*Math.cos(m*phi)
+);
+}
+
+// ------------------
+// radial
+// ------------------
+
+function R(n,l,r){
+
+const rho=2*r/n;
+
+return Math.exp(-rho/2)*
+Math.pow(rho,l)*
+L(n-l-1,2*l+1,rho);
+}
+
+// ------------------
+// probability
+// ------------------
+
+function psiProb(
+n,l,m,
+r,theta,phi
+){
+
+const radial=
+R(n,l,r);
+
+const angular=
+Y(l,m,theta,phi);
+
+return radial*radial*
+angular*angular;
+}
+
+// ------------------
+// orbital generation
+// ------------------
+
+function generateOrbital(
+n,l,m
+){
+
+if(l>=n){
+alert("Need l < n");
+return;
+}
+
+if(Math.abs(m)>l){
+alert("Need |m| ≤ l");
+return;
+}
+
+if(cloud)
+scene.remove(cloud);
 
 const positions=[];
 const colors=[];
-const particles= 800000;
+
+const particles=300000;
 
 for(let i=0;i<particles;i++){
 
-let r=
-(type==="1s")
-?sampleRadius1s()
-:sampleRadius2s();
+let r=Math.random()*20;
 
 let theta=Math.acos(
 2*Math.random()-1
@@ -90,75 +185,36 @@ let theta=Math.acos(
 
 let phi=Math.random()*Math.PI*2;
 
-let x=r*Math.sin(theta)*Math.cos(phi);
-let y=r*Math.sin(theta)*Math.sin(phi);
-let z=r*Math.cos(theta);
-
-let keep=true;
-
-// p orbitals
-if(type==="2px")
-keep=Math.random()<Math.abs(x/r);
-
-if(type==="2py")
-keep=Math.random()<Math.abs(y/r);
-
-if(type==="2pz")
-keep=Math.random()<Math.abs(z/r);
-
-// d orbitals
-if(type==="3dxz")
-keep=Math.random()<Math.abs(x*z)/(r*r);
-
-if(type==="3dyz")
-keep=Math.random()<Math.abs(y*z)/(r*r);
-
-if(type==="3dxy")
-keep=Math.random()<Math.abs(x*y)/(r*r);
-
-if(type==="3dx2y2")
-keep=Math.random()<Math.abs(x*x-y*y)/(r*r);
-
-if(type==="3dz2")
-keep=Math.random()<Math.abs(
-(2*z*z-x*x-y*y)/(r*r)
+let prob=
+psiProb(
+n,l,m,
+r,theta,phi
 );
 
-if(!keep) continue;
+if(Math.random()>prob*5)
+continue;
 
-positions.push(x,y,z);
+let x=
+r*Math.sin(theta)*Math.cos(phi);
 
-let intensity=1-r/12;
+let y=
+r*Math.sin(theta)*Math.sin(phi);
 
-// colors
-if(type.includes("d")){
-colors.push(
-1,
-0.5*intensity,
-0.15
+let z=
+r*Math.cos(theta);
+
+positions.push(
+x,y,z
 );
-}
-else if(type.includes("p")){
+
+let intensity=
+Math.min(prob*20,1);
+
 colors.push(
-0.2,
-1,
-0.8
-);
-}
-else if(type==="2s"){
-colors.push(
-0.8,
+intensity,
 0.3,
-1
+1-intensity
 );
-}
-else{
-colors.push(
-0.3+intensity*0.5,
-0.3,
-1
-);
-}
 }
 
 const geometry=
@@ -180,15 +236,16 @@ colors,3
 
 const material=
 new THREE.PointsMaterial({
-size:0.05,
+size:0.04,
 transparent:true,
-opacity:0.65,
+opacity:0.7,
 vertexColors:true,
 depthWrite:false
 });
 
 material.onBeforeCompile=
 shader=>{
+
 shader.fragmentShader=
 shader.fragmentShader.replace(
 `#include <clipping_planes_fragment>`,
@@ -197,33 +254,48 @@ shader.fragmentShader.replace(
 if(length(gl_PointCoord-vec2(0.5))>0.5) discard;
 `
 );
+
 };
 
-cloud=
-new THREE.Points(
+cloud=new THREE.Points(
 geometry,
 material
 );
 
 scene.add(cloud);
+
 }
 
-createCloud("1s");
-
-// ---------------------
-// Selector
-// ---------------------
+// UI
 
 document
-.getElementById("orbitalSelect")
-.addEventListener(
-"change",
-e=>createCloud(e.target.value)
+.getElementById("generate")
+.onclick=()=>{
+
+const n=
+parseInt(
+document.getElementById("n").value
 );
 
-// ---------------------
-// Animation
-// ---------------------
+const l=
+parseInt(
+document.getElementById("l").value
+);
+
+const m=
+parseInt(
+document.getElementById("m").value
+);
+
+generateOrbital(
+n,l,m
+);
+
+};
+
+generateOrbital(3,2,0);
+
+// animation
 
 function animate(){
 
@@ -242,10 +314,6 @@ camera
 
 animate();
 
-// ---------------------
-// Resize
-// ---------------------
-
 window.addEventListener(
 'resize',
 ()=>{
@@ -261,5 +329,4 @@ window.innerWidth,
 window.innerHeight
 );
 
-}
-);
+});

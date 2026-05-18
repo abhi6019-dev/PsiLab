@@ -2,24 +2,27 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Hydrogen Orbital Explorer</title>
+<title>Orbitalis</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<select id="orbitalSelect">
-<option value="1s">1s</option>
-<option value="2s">2s</option>
-<option value="2px">2pₓ</option>
-<option value="2py">2pᵧ</option>
-<option value="2pz">2p_z</option>
+<div id="panel">
 
-<option value="3dz2">3d_z²</option>
-<option value="3dxz">3d_xz</option>
-<option value="3dyz">3d_yz</option>
-<option value="3dxy">3d_xy</option>
-<option value="3dx2y2">3d_x²−y²</option>
-</select>
+<label>n</label>
+<input id="n" type="number" value="3" min="1">
+
+<label>l</label>
+<input id="l" type="number" value="2" min="0">
+
+<label>m</label>
+<input id="m" type="number" value="0">
+
+<button id="generate">
+Generate
+</button>
+
+</div>
 
 <canvas id="bg"></canvas>
 
