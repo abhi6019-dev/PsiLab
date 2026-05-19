@@ -2,29 +2,41 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#050712">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#03040b">
+  <meta name="color-scheme" content="dark">
   <title>PsiLab | Hydrogen Orbital Visualizer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="quantum-field" aria-hidden="true">
     <span class="field-layer field-layer-a"></span>
     <span class="field-layer field-layer-b"></span>
+    <span class="field-layer field-layer-c"></span>
     <span class="field-grid"></span>
+    <span class="field-noise"></span>
   </div>
 
   <section id="loading" class="loading-screen is-active" aria-live="polite" aria-label="Orbital generation progress">
+    <div class="loading-veil" aria-hidden="true"></div>
     <div class="loader-shell">
       <div class="quantum-ring" aria-hidden="true">
         <span></span>
         <span></span>
         <span></span>
+        <span class="quantum-core"></span>
       </div>
       <p class="loader-kicker">PsiLab WebGL engine</p>
       <h2 id="loaderTitle">Initializing orbital engine</h2>
       <div class="loader-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-        <span id="loadingBar"></span>
+        <div class="loader-progress__track">
+          <span id="loadingBar" class="loader-progress__fill">
+            <span class="loader-progress__shine" aria-hidden="true"></span>
+          </span>
+        </div>
       </div>
       <div class="loader-meta">
         <strong id="loadingPercent">0%</strong>
@@ -35,10 +47,29 @@
 
   <canvas id="bg" aria-label="Hydrogen atom orbital visualization"></canvas>
 
+  <div id="panelBackdrop" class="panel-backdrop" hidden aria-hidden="true"></div>
+
+  <button type="button" id="panelToggle" class="panel-fab" aria-expanded="false" aria-controls="controlPanel" hidden>
+    <span class="panel-fab__ring" aria-hidden="true"></span>
+    <span class="panel-fab__icon" aria-hidden="true">
+      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="9" cy="9" r="2.2" stroke="currentColor" stroke-width="1.2"/>
+        <ellipse cx="9" cy="9" rx="7.2" ry="3.1" stroke="currentColor" stroke-width="1.1" opacity="0.85"/>
+        <ellipse cx="9" cy="9" rx="7.2" ry="3.1" stroke="currentColor" stroke-width="1.1" opacity="0.55" transform="rotate(60 9 9)"/>
+        <ellipse cx="9" cy="9" rx="7.2" ry="3.1" stroke="currentColor" stroke-width="1.1" opacity="0.55" transform="rotate(-60 9 9)"/>
+      </svg>
+    </span>
+    <span class="panel-fab__label">Controls</span>
+  </button>
+
   <main class="app-shell">
-    <aside class="control-panel" aria-label="PsiLab controls">
+    <aside id="controlPanel" class="control-panel" aria-label="PsiLab controls">
+      <div class="drawer-handle" aria-hidden="true"></div>
+
       <header class="brand-block">
-        <div class="logo-mark" aria-hidden="true">Psi</div>
+        <div class="logo-mark" aria-hidden="true">
+          <span class="logo-psi">&#968;</span>
+        </div>
         <div>
           <h1>PsiLab</h1>
           <p class="tag">Computational hydrogen orbital laboratory</p>
@@ -54,19 +85,19 @@
         <div class="input-grid">
           <label class="field-control">
             <span>n</span>
-            <input id="nInput" type="number" min="1" step="1" value="3" inputmode="numeric">
+            <input id="nInput" type="number" min="1" step="1" value="3" inputmode="numeric" autocomplete="off">
           </label>
           <label class="field-control">
             <span>l</span>
-            <input id="lInput" type="number" min="0" step="1" value="2" inputmode="numeric">
+            <input id="lInput" type="number" min="0" step="1" value="2" inputmode="numeric" autocomplete="off">
           </label>
           <label class="field-control">
             <span>m</span>
-            <input id="mInput" type="number" step="1" value="0" inputmode="numeric">
+            <input id="mInput" type="number" step="1" value="0" inputmode="numeric" autocomplete="off">
           </label>
           <label class="field-control">
             <span>particles</span>
-            <input id="countInput" type="number" min="10000" step="10000" value="320000" inputmode="numeric">
+            <input id="countInput" type="number" min="10000" step="10000" value="320000" inputmode="numeric" autocomplete="off">
           </label>
         </div>
 
@@ -87,20 +118,20 @@
         </label>
 
         <div class="preset-grid" aria-label="Preset orbitals">
-          <button class="preset-button" data-n="1" data-l="0" data-m="0">1s</button>
-          <button class="preset-button" data-n="2" data-l="0" data-m="0">2s</button>
-          <button class="preset-button" data-n="2" data-l="1" data-m="0">2p</button>
-          <button class="preset-button" data-n="3" data-l="0" data-m="0">3s</button>
-          <button class="preset-button" data-n="3" data-l="1" data-m="1">3p</button>
-          <button class="preset-button" data-n="3" data-l="2" data-m="0">3d</button>
-          <button class="preset-button" data-n="4" data-l="3" data-m="2">4f</button>
-          <button class="preset-button" data-n="5" data-l="4" data-m="2">5g</button>
-          <button class="preset-button" data-n="6" data-l="5" data-m="3">6h</button>
+          <button type="button" class="preset-button" data-n="1" data-l="0" data-m="0">1s</button>
+          <button type="button" class="preset-button" data-n="2" data-l="0" data-m="0">2s</button>
+          <button type="button" class="preset-button" data-n="2" data-l="1" data-m="0">2p</button>
+          <button type="button" class="preset-button" data-n="3" data-l="0" data-m="0">3s</button>
+          <button type="button" class="preset-button" data-n="3" data-l="1" data-m="1">3p</button>
+          <button type="button" class="preset-button" data-n="3" data-l="2" data-m="0">3d</button>
+          <button type="button" class="preset-button" data-n="4" data-l="3" data-m="2">4f</button>
+          <button type="button" class="preset-button" data-n="5" data-l="4" data-m="2">5g</button>
+          <button type="button" class="preset-button" data-n="6" data-l="5" data-m="3">6h</button>
         </div>
 
         <div class="action-row">
-          <button id="generateButton" class="primary-action">Generate</button>
-          <button id="captureButton" class="secondary-action">Export PNG</button>
+          <button type="button" id="generateButton" class="primary-action">Generate</button>
+          <button type="button" id="captureButton" class="secondary-action">Export PNG</button>
         </div>
       </section>
 
@@ -129,19 +160,19 @@
           <small>hydrogenic basis</small>
         </div>
         <p>
-          PsiLab evaluates the bound-state hydrogen solution psi(n,l,m)=R(n,l)Y(l,m) in atomic units. The radial field uses the normalized Schrodinger eigenfunction with associated Laguerre polynomials, while the angular field uses normalized real spherical harmonics built from associated Legendre polynomials.
+          PsiLab evaluates the bound-state hydrogen solution &psi;(n,l,m)=R(n,l)Y(l,m) in atomic units. The radial field uses the normalized Schrodinger eigenfunction with associated Laguerre polynomials, while the angular field uses normalized real spherical harmonics built from associated Legendre polynomials.
         </p>
         <p>
-          Samples are drawn from the true separable probability density. The radial distribution r*r*|R|*|R| is integrated into a normalized inverse CDF, and the angular term |Y|*|Y| is accepted by rejection sampling over the unit sphere. The resulting cloud is uploaded as typed-array GPU buffers and rendered as an additive WebGL point field.
+          Samples are drawn from the true separable probability density. The radial distribution r&sup2;|R|&sup2; is integrated into a normalized inverse CDF, and the angular term |Y|&sup2; is accepted by rejection sampling over the unit sphere. The resulting cloud is uploaded as typed-array GPU buffers and rendered as an additive WebGL point field.
         </p>
         <p>
           OrbitControls provide damped rotation, wheel zoom, and touch pinch. The renderer uses logarithmic depth, adaptive draw ranges, worker-thread generation, and compact shader sprites so dense states remain responsive on laptops and scale upward on stronger GPUs.
         </p>
         <p>
-          The central proton is scaled from the physical proton charge radius, about 1.589e-5 Bohr radii. At full-cloud scale it is therefore nearly invisible by design; deep zoom reveals the physically sized nucleus while the point cloud remains a probability distribution, not enlarged electron beads.
+          The central proton is scaled from the physical proton charge radius, about 1.589&times;10<sup>-5</sup> Bohr radii. At full-cloud scale it is therefore nearly invisible by design; deep zoom reveals the physically sized nucleus while the point cloud remains a probability distribution, not enlarged electron beads.
         </p>
         <p>
-          Orientation presets expose the real harmonic basis directly: p orbitals map to p_z, p_x, and p_y; d orbitals map to d_z2, d_xz, d_yz, d_x2-y2, and d_xy. Higher angular momenta expose their cos(m phi) and sin(m phi) real orientations.
+          Orientation presets expose the real harmonic basis directly: p orbitals map to p<sub>z</sub>, p<sub>x</sub>, and p<sub>y</sub>; d orbitals map to d<sub>z&sup2;</sub>, d<sub>xz</sub>, d<sub>yz</sub>, d<sub>x&sup2;-y&sup2;</sub>, and d<sub>xy</sub>. Higher angular momenta expose their cos(m&phi;) and sin(m&phi;) real orientations.
         </p>
       </section>
     </aside>

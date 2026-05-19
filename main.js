@@ -61,6 +61,11 @@
   var orbitalStat = document.getElementById("orbitalStat");
   var gpuStat = document.getElementById("gpuStat");
   var presetButtons = Array.prototype.slice.call(document.querySelectorAll(".preset-button"));
+  var controlPanel = document.getElementById("controlPanel");
+  var panelToggle = document.getElementById("panelToggle");
+  var panelBackdrop = document.getElementById("panelBackdrop");
+  var drawerMq = window.matchMedia("(max-width: 767px)");
+  var drawerDismissTimer = null;
 
   if (!THREE || !THREE.OrbitControls) {
     loading.classList.add("is-active");
@@ -140,6 +145,7 @@
 
   generateButton.addEventListener("click", function () {
     generateOrbital("manual");
+    closeDrawerIfMobile();
   });
 
   captureButton.addEventListener("click", exportScreenshot);
@@ -172,8 +178,11 @@
       syncQuantumInputs();
       updatePresetState();
       generateOrbital("preset");
+      closeDrawerIfMobile();
     });
   });
+
+  initMobileDrawer();
 
   window.addEventListener("resize", onResize);
   window.addEventListener("beforeunload", function () {
@@ -268,7 +277,7 @@
         setLoadingProgress(100, STATUS_STEPS[6]);
         window.setTimeout(function () {
           setLoadingVisible(false);
-        }, 320);
+        }, 480);
         currentWorker.terminate();
         currentWorker = null;
         return;
@@ -705,7 +714,25 @@
   }
 
   function setLoadingVisible(visible) {
-    loading.classList.toggle("is-active", visible);
+    if (visible) {
+      if (drawerDismissTimer) {
+        window.clearTimeout(drawerDismissTimer);
+        drawerDismissTimer = null;
+      }
+      loading.classList.remove("is-exiting");
+      loading.classList.add("is-active");
+      return;
+    }
+
+    if (!loading.classList.contains("is-active")) {
+      return;
+    }
+
+    loading.classList.add("is-exiting");
+    drawerDismissTimer = window.setTimeout(function () {
+      loading.classList.remove("is-active", "is-exiting");
+      drawerDismissTimer = null;
+    }, 520);
   }
 
   function setLoadingProgress(value, status) {
@@ -720,8 +747,99 @@
     }
   }
 
+  function isDrawerMode() {
+    return drawerMq.matches;
+  }
+
+  function openMobileDrawer() {
+    if (!isDrawerMode() || !controlPanel) {
+      return;
+    }
+    controlPanel.classList.add("is-open");
+    if (panelBackdrop) {
+      panelBackdrop.hidden = false;
+      panelBackdrop.classList.add("is-visible");
+      panelBackdrop.setAttribute("aria-hidden", "false");
+    }
+    if (panelToggle) {
+      panelToggle.setAttribute("aria-expanded", "true");
+    }
+    document.body.classList.add("is-drawer-open");
+  }
+
+  function closeMobileDrawer() {
+    if (!controlPanel) {
+      return;
+    }
+    controlPanel.classList.remove("is-open");
+    if (panelBackdrop) {
+      panelBackdrop.classList.remove("is-visible");
+      panelBackdrop.setAttribute("aria-hidden", "true");
+      window.setTimeout(function () {
+        if (!controlPanel.classList.contains("is-open")) {
+          panelBackdrop.hidden = true;
+        }
+      }, 380);
+    }
+    if (panelToggle) {
+      panelToggle.setAttribute("aria-expanded", "false");
+    }
+    document.body.classList.remove("is-drawer-open");
+  }
+
+  function closeDrawerIfMobile() {
+    if (isDrawerMode()) {
+      closeMobileDrawer();
+    }
+  }
+
+  function syncDrawerChrome() {
+    if (!panelToggle || !controlPanel) {
+      return;
+    }
+    if (isDrawerMode()) {
+      panelToggle.hidden = false;
+    } else {
+      panelToggle.hidden = true;
+      closeMobileDrawer();
+    }
+  }
+
+  function initMobileDrawer() {
+    if (!panelToggle || !controlPanel) {
+      return;
+    }
+
+    syncDrawerChrome();
+
+    panelToggle.addEventListener("click", function () {
+      if (controlPanel.classList.contains("is-open")) {
+        closeMobileDrawer();
+      } else {
+        openMobileDrawer();
+      }
+    });
+
+    if (panelBackdrop) {
+      panelBackdrop.addEventListener("click", closeMobileDrawer);
+    }
+
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && controlPanel.classList.contains("is-open")) {
+        closeMobileDrawer();
+      }
+    });
+
+    if (typeof drawerMq.addEventListener === "function") {
+      drawerMq.addEventListener("change", syncDrawerChrome);
+    } else if (typeof drawerMq.addListener === "function") {
+      drawerMq.addListener(syncDrawerChrome);
+    }
+  }
+
   function onResize() {
     isMobile = detectMobile();
+    syncDrawerChrome();
     maxParticleCount = isMobile ? 650000 : 5000000;
     basePixelRatio = Math.min(window.devicePixelRatio || 1, isMobile ? 1.2 : 1.65);
     currentPixelRatio = Math.min(currentPixelRatio, basePixelRatio);
