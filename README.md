@@ -1,6 +1,3 @@
-To download the final version of this file, copy the content below and save it as `README.md`.
-
-```markdown
 # PsiLab
 
 ### *High-Fidelity Numerical Reconstruction of Hydrogenic Eigenstates via Stochastic GPU Rasterization*
