@@ -118,6 +118,8 @@ gl_Position.z = (log_depth - 1.0) * gl_Position.w;
 
 ## Installation & Deployment
 
+# PsiLab Is Live At: https://abhi6019-dev.github.io/PsiLab/
+
 PsiLab is a zero-dependency, client-side application requiring only a WebGL 2.0 compliant environment.
 
 ```bash
