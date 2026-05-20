@@ -12,12 +12,12 @@
   };
 
   var ORBITAL_COLORS = {
-    0: { a: 0x67a8ff, b: 0x57f0ff, name: "s" },
-    1: { a: 0x57f0ff, b: 0x74ffb1, name: "p" },
-    2: { a: 0xffb15f, b: 0xff6a8a, name: "d" },
-    3: { a: 0xff74c8, b: 0xb78cff, name: "f" },
-    4: { a: 0xb78cff, b: 0x67a8ff, name: "g" },
-    5: { a: 0x74ffb1, b: 0xfff3a3, name: "h" }
+    0: { a: 0x58b4ff, b: 0x42e8ff, name: "s" },
+    1: { a: 0x46c8ff, b: 0x7cf0d8, name: "p" },
+    2: { a: 0x5e9dff, b: 0xc278ff, name: "d" },
+    3: { a: 0x8a7dff, b: 0x3dd8ff, name: "f" },
+    4: { a: 0xa07cff, b: 0x56d0ff, name: "g" },
+    5: { a: 0x6cf0ff, b: 0xb894ff, name: "h" }
   };
 
   var SPECTROSCOPIC = [
@@ -34,10 +34,6 @@
     "Launching visualization..."
   ];
 
-  // CODATA-scale proton charge radius divided by the Bohr radius:
-  // 0.8409 fm / 52,917.7 fm = 1.589e-5. Electron particles in PsiLab are
-  // probability samples, so the proton is scaled against the orbital cloud's
-  // Bohr-unit coordinates rather than against a fake electron sphere.
   var PROTON_RADIUS_IN_BOHR = 1.589e-5;
   var CLOUD_VIEW_RADIUS = 3.05;
 
@@ -60,12 +56,15 @@
   var particleStat = document.getElementById("particleStat");
   var orbitalStat = document.getElementById("orbitalStat");
   var gpuStat = document.getElementById("gpuStat");
-  var presetButtons = Array.prototype.slice.call(document.querySelectorAll(".preset-button"));
   var controlPanel = document.getElementById("controlPanel");
   var panelToggle = document.getElementById("panelToggle");
   var panelBackdrop = document.getElementById("panelBackdrop");
   var drawerMq = window.matchMedia("(max-width: 767px)");
   var drawerDismissTimer = null;
+  var orbitalSheet = document.getElementById("orbitalSheet");
+  var orbitalSheetOpen = document.getElementById("orbitalSheetOpen");
+  var orbitalSheetClose = document.getElementById("orbitalSheetClose");
+  var orbitalSheetScrim = document.getElementById("orbitalSheetScrim");
 
   if (!THREE || !THREE.OrbitControls) {
     loading.classList.add("is-active");
@@ -134,8 +133,6 @@
 
   var gpuTimer = createGpuTimer(renderer);
 
-  // Lightweight context elements make the WebGL scene feel spatial without
-  // polluting the probability density cloud itself.
   createReferenceField();
   createNucleus();
   syncQuantumInputs();
@@ -170,19 +167,25 @@
     });
   });
 
-  presetButtons.forEach(function (button) {
-    button.addEventListener("click", function () {
-      nInput.value = button.dataset.n;
-      lInput.value = button.dataset.l;
-      mInput.value = button.dataset.m;
-      syncQuantumInputs();
-      updatePresetState();
-      generateOrbital("preset");
-      closeDrawerIfMobile();
-    });
+  document.addEventListener("click", function (event) {
+    var button = event.target.closest(".preset-button");
+    if (!button || button.dataset.n === undefined) {
+      return;
+    }
+    nInput.value = button.dataset.n;
+    lInput.value = button.dataset.l;
+    mInput.value = button.dataset.m;
+    syncQuantumInputs();
+    updatePresetState();
+    generateOrbital("preset");
+    closeOrbitalSheet();
+    closeDrawerIfMobile();
   });
 
   initMobileDrawer();
+  initOrbitalSheet();
+  syncMobileChrome();
+  syncControlsEnabled();
 
   window.addEventListener("resize", onResize);
   window.addEventListener("beforeunload", function () {
@@ -258,8 +261,6 @@
     setLoadingVisible(true);
     setLoadingProgress(1, reason === "initial" ? STATUS_STEPS[0] : "Preparing " + orbitalName(state) + "...");
 
-    // Heavy wavefunction sampling stays off the main thread. The worker is
-    // rebuilt per request so preset clicks can cancel expensive states cleanly.
     currentWorker = createSamplerWorker();
     currentWorker.onmessage = function (event) {
       var message = event.data;
@@ -326,8 +327,6 @@
     geometry.setDrawRange(0, positions.length / 3);
     geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 4.8);
 
-    // Positions are already scaled by the worker from Bohr radii into a stable
-    // visualization radius. The shader handles circular sprites and glow.
     currentMaterial = createCloudMaterial(state.l, positions.length / 3);
     currentCloud = new THREE.Points(geometry, currentMaterial);
     currentCloud.frustumCulled = false;
@@ -367,8 +366,8 @@
 
   function createCloudMaterial(l, count) {
     var palette = ORBITAL_COLORS[l] || {
-      a: 0xf7fbff,
-      b: 0xfff3a3,
+      a: 0x66a8ff,
+      b: 0xb894ff,
       name: "high-l"
     };
 
@@ -379,9 +378,6 @@
       opacity *= 1.08;
     }
 
-    // ShaderMaterial is faster and more controllable than PointsMaterial here:
-    // it draws circular additive particles, varies color subtly by radius, and
-    // keeps point size stable across deep zooms into the nucleus.
     return new THREE.ShaderMaterial({
       transparent: true,
       depthWrite: false,
@@ -427,7 +423,7 @@
         "  float core = smoothstep(0.16, 0.0, r2);",
         "  float band = 0.5 + 0.5 * sin(vRadius * 4.2 - uTime * 0.32);",
         "  vec3 color = mix(uColorA, uColorB, smoothstep(0.1, 0.95, band));",
-        "  color += core * 0.16;",
+        "  color += core * 0.12;",
         "  float alpha = disk * uOpacity * mix(1.0, 0.62, vDepth);",
         "  gl_FragColor = vec4(color, alpha);",
         "}"
@@ -440,14 +436,14 @@
 
     nucleusCore = new THREE.Mesh(
       new THREE.SphereBufferGeometry(1, 32, 16),
-      new THREE.MeshBasicMaterial({ color: 0xfff3a3 })
+      new THREE.MeshBasicMaterial({ color: 0xff3a1a })
     );
 
-    var glowTexture = createGlowTexture();
+    var glowTexture = createNucleusGlowTexture();
     nucleusGlow = new THREE.Sprite(
       new THREE.SpriteMaterial({
         map: glowTexture,
-        color: 0xff835f,
+        color: 0xff5522,
         transparent: true,
         opacity: 0.72,
         blending: THREE.AdditiveBlending,
@@ -471,14 +467,13 @@
     var protonRadius = PROTON_RADIUS_IN_BOHR * bohrToScene;
     nucleusCore.scale.setScalar(protonRadius);
 
-    // The glow is not a second, oversized nucleus; it is a faint locator around
-    // the physically scaled proton so deep zooms can still find the origin.
+    // Faint locator glow only; radius is still tied to the true proton scale.
     var locatorRadius = protonRadius * 18;
     nucleusGlow.scale.set(locatorRadius, locatorRadius, 1);
     nucleusGlow.material.opacity = 0.72;
   }
 
-  function createGlowTexture() {
+  function createNucleusGlowTexture() {
     var size = 128;
     var c = document.createElement("canvas");
     c.width = size;
@@ -486,9 +481,9 @@
     var ctx = c.getContext("2d");
     var gradient = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
     gradient.addColorStop(0, "rgba(255,255,255,1)");
-    gradient.addColorStop(0.24, "rgba(255,224,142,0.88)");
-    gradient.addColorStop(0.54, "rgba(255,112,88,0.26)");
-    gradient.addColorStop(1, "rgba(255,112,88,0)");
+    gradient.addColorStop(0.2, "rgba(255,200,140,0.9)");
+    gradient.addColorStop(0.45, "rgba(255,100,40,0.45)");
+    gradient.addColorStop(1, "rgba(255,60,20,0)");
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, size, size);
     var texture = new THREE.CanvasTexture(c);
@@ -570,9 +565,6 @@
     var count = currentCloud.userData.count || 0;
     var changed = false;
 
-    // Adaptive LOD protects weaker devices by trimming draw range before the
-    // app feels stuck. The full GPU buffer remains resident and restores as FPS
-    // recovers, so the simulation does not need to regenerate.
     if (fps < 28 && drawRatio > 0.34) {
       drawRatio = Math.max(0.34, drawRatio * 0.88);
       changed = true;
@@ -655,7 +647,7 @@
 
   function updatePresetState() {
     var state = readControls();
-    presetButtons.forEach(function (button) {
+    document.querySelectorAll(".preset-button").forEach(function (button) {
       var active = Number(button.dataset.n) === state.n &&
         Number(button.dataset.l) === state.l &&
         Number(button.dataset.m) === state.m;
@@ -721,6 +713,7 @@
       }
       loading.classList.remove("is-exiting");
       loading.classList.add("is-active");
+      syncControlsEnabled();
       return;
     }
 
@@ -732,7 +725,9 @@
     drawerDismissTimer = window.setTimeout(function () {
       loading.classList.remove("is-active", "is-exiting");
       drawerDismissTimer = null;
+      syncControlsEnabled();
     }, 520);
+    syncControlsEnabled();
   }
 
   function setLoadingProgress(value, status) {
@@ -751,6 +746,13 @@
     return drawerMq.matches;
   }
 
+  function syncControlsEnabled() {
+    var drawerOpen = isDrawerMode() && controlPanel && controlPanel.classList.contains("is-open");
+    var sheetOpen = orbitalSheet && orbitalSheet.classList.contains("is-open");
+    var loadOpen = loading.classList.contains("is-active");
+    controls.enabled = !drawerOpen && !sheetOpen && !loadOpen;
+  }
+
   function openMobileDrawer() {
     if (!isDrawerMode() || !controlPanel) {
       return;
@@ -765,12 +767,14 @@
       panelToggle.setAttribute("aria-expanded", "true");
     }
     document.body.classList.add("is-drawer-open");
+    syncControlsEnabled();
   }
 
   function closeMobileDrawer() {
     if (!controlPanel) {
       return;
     }
+    closeOrbitalSheet();
     controlPanel.classList.remove("is-open");
     if (panelBackdrop) {
       panelBackdrop.classList.remove("is-visible");
@@ -785,6 +789,7 @@
       panelToggle.setAttribute("aria-expanded", "false");
     }
     document.body.classList.remove("is-drawer-open");
+    syncControlsEnabled();
   }
 
   function closeDrawerIfMobile() {
@@ -793,15 +798,48 @@
     }
   }
 
-  function syncDrawerChrome() {
+  function openOrbitalSheet() {
+    if (!orbitalSheet) {
+      return;
+    }
+    orbitalSheet.classList.add("is-open");
+    orbitalSheet.setAttribute("aria-hidden", "false");
+    document.body.classList.add("is-orbital-sheet-open");
+    if (orbitalSheetOpen) {
+      orbitalSheetOpen.setAttribute("aria-expanded", "true");
+    }
+    syncControlsEnabled();
+  }
+
+  function closeOrbitalSheet() {
+    if (!orbitalSheet) {
+      return;
+    }
+    orbitalSheet.classList.remove("is-open");
+    orbitalSheet.setAttribute("aria-hidden", "true");
+    document.body.classList.remove("is-orbital-sheet-open");
+    if (orbitalSheetOpen) {
+      orbitalSheetOpen.setAttribute("aria-expanded", "false");
+    }
+    syncControlsEnabled();
+  }
+
+  function syncMobileChrome() {
     if (!panelToggle || !controlPanel) {
       return;
     }
     if (isDrawerMode()) {
       panelToggle.hidden = false;
+      if (orbitalSheetOpen) {
+        orbitalSheetOpen.hidden = false;
+      }
     } else {
       panelToggle.hidden = true;
+      if (orbitalSheetOpen) {
+        orbitalSheetOpen.hidden = true;
+      }
       closeMobileDrawer();
+      closeOrbitalSheet();
     }
   }
 
@@ -810,7 +848,7 @@
       return;
     }
 
-    syncDrawerChrome();
+    syncMobileChrome();
 
     panelToggle.addEventListener("click", function () {
       if (controlPanel.classList.contains("is-open")) {
@@ -825,21 +863,50 @@
     }
 
     document.addEventListener("keydown", function (event) {
-      if (event.key === "Escape" && controlPanel.classList.contains("is-open")) {
+      if (event.key !== "Escape") {
+        return;
+      }
+      if (orbitalSheet && orbitalSheet.classList.contains("is-open")) {
+        closeOrbitalSheet();
+        return;
+      }
+      if (controlPanel.classList.contains("is-open")) {
         closeMobileDrawer();
       }
     });
 
     if (typeof drawerMq.addEventListener === "function") {
-      drawerMq.addEventListener("change", syncDrawerChrome);
+      drawerMq.addEventListener("change", syncMobileChrome);
     } else if (typeof drawerMq.addListener === "function") {
-      drawerMq.addListener(syncDrawerChrome);
+      drawerMq.addListener(syncMobileChrome);
+    }
+  }
+
+  function initOrbitalSheet() {
+    if (!orbitalSheet || !orbitalSheetOpen) {
+      return;
+    }
+
+    orbitalSheetOpen.addEventListener("click", function () {
+      if (orbitalSheet.classList.contains("is-open")) {
+        closeOrbitalSheet();
+      } else {
+        openOrbitalSheet();
+      }
+    });
+
+    if (orbitalSheetClose) {
+      orbitalSheetClose.addEventListener("click", closeOrbitalSheet);
+    }
+
+    if (orbitalSheetScrim) {
+      orbitalSheetScrim.addEventListener("click", closeOrbitalSheet);
     }
   }
 
   function onResize() {
     isMobile = detectMobile();
-    syncDrawerChrome();
+    syncMobileChrome();
     maxParticleCount = isMobile ? 650000 : 5000000;
     basePixelRatio = Math.min(window.devicePixelRatio || 1, isMobile ? 1.2 : 1.65);
     currentPixelRatio = Math.min(currentPixelRatio, basePixelRatio);
@@ -848,6 +915,7 @@
     camera.updateProjectionMatrix();
     renderer.setPixelRatio(currentPixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight, false);
+    syncControlsEnabled();
   }
 
   function createGpuTimer(activeRenderer) {
@@ -998,8 +1066,6 @@
       "  }",
       "}",
       "function buildRadialSampler(n, l, jobId) {",
-      "  // Radial probability is integrated from the exact normalized R_nl.",
-      "  // Inverse-CDF sampling is used for speed; angular sampling below uses rejection.",
       "  var gridSize = Math.min(65536, Math.max(8192, Math.ceil(n * 768)));",
       "  var rMax = radialCutoff(n, l);",
       "  var radii = new Float64Array(gridSize);",
@@ -1067,7 +1133,6 @@
       "  return r * r * R * R;",
       "}",
       "function radialWavefunction(n, l, r) {",
-      "  // R_nl(r) = sqrt((2/n)^3 (n-l-1)! / (2n (n+l)!)) exp(-rho/2) rho^l L_k^a(rho).",
       "  var rho = 2 * r / n;",
       "  var k = n - l - 1;",
       "  var alpha = 2 * l + 1;",
@@ -1111,7 +1176,6 @@
       "  return maxValue * 1.08 + 1e-14;",
       "}",
       "function sampleAngular(l, m, maxValue) {",
-      "  // Directions are proposed uniformly on the sphere and accepted against |Y_lm|^2.",
       "  var tries = 0;",
       "  while (true) {",
       "    tries += 1;",
@@ -1214,7 +1278,7 @@
   }
 
   function setOrbitalTheme(l) {
-    var palette = ORBITAL_COLORS[l] || { a: 0xf7fbff, b: 0xfff3a3 };
+    var palette = ORBITAL_COLORS[l] || { a: 0x66a8ff, b: 0xb894ff };
     document.documentElement.style.setProperty("--orbital-a", "#" + palette.a.toString(16).padStart(6, "0"));
     document.documentElement.style.setProperty("--orbital-b", "#" + palette.b.toString(16).padStart(6, "0"));
   }
